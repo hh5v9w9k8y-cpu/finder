@@ -6,6 +6,8 @@ const transporter = nodemailer.createTransport({
   host: 'smtp.qq.com',
   port: 465,
   secure: true,
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
