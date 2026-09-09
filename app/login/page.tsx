@@ -46,7 +46,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${API_URL}/api/v1/send-code`, {
+      const res = await fetch(`${API_URL}/api/v1/v1/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -97,7 +97,7 @@ export default function LoginPage() {
           setLoading(false);
           return;
         }
-        const res = await fetch(`${API_URL}/api/v1/register`, {
+        const res = await fetch(`${API_URL}/api/v1/v1/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, code })
@@ -112,7 +112,7 @@ export default function LoginPage() {
         localStorage.setItem('user_account', email);
         setShowAgeModal(true);
       } else {
-        const res = await fetch(`${API_URL}/api/v1/login`, {
+        const res = await fetch(`${API_URL}/api/v1/v1/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
