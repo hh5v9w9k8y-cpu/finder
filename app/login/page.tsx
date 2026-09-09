@@ -56,7 +56,10 @@ export default function LoginPage() {
         setCountdown(60);
         const timer = setInterval(() => {
           setCountdown(prev => {
-            if (prev <= 1) { clearInterval(timer); return 0; }
+            if (prev <= 1) {
+              clearInterval(timer);
+              return 0;
+            }
             return prev - 1;
           });
         }, 1000);
@@ -70,12 +73,10 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
     if (isRegister && !agreed) {
       setError(t.agreeFirst);
       return;
     }
-
     setLoading(true);
     try {
       if (isRegister) {
@@ -123,7 +124,9 @@ export default function LoginPage() {
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('user_account', email);
         router.push('/');
-        setTimeout(() => { window.location.href = '/'; }, 300);
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 300);
       }
     } catch {
       setError(t.networkError);
@@ -136,7 +139,9 @@ export default function LoginPage() {
     localStorage.setItem('isOver18', 'true');
     setShowAgeModal(false);
     router.push('/');
-    setTimeout(() => { window.location.href = '/'; }, 300);
+    setTimeout(() => {
+      window.location.href = '/';
+    }, 300);
   };
 
   const inputStyle = {
@@ -152,168 +157,50 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#121212',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      color: '#fff',
-      fontFamily: "'PingFang SC', sans-serif",
-      padding: '20px'
-    }}>
+    <div style={{ minHeight: '100vh', background: '#121212', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#fff', fontFamily: "'PingFang SC', sans-serif", padding: '20px' }}>
       <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
-        <select
-          value={lang}
-          onChange={(e) => setLang(e.target.value)}
-          style={{
-            padding: '8px 12px',
-            borderRadius: '8px',
-            border: '1px solid #333',
-            background: '#1e1e1e',
-            color: '#fff',
-            fontSize: '14px',
-            outline: 'none',
-            cursor: 'pointer'
-          }}
-        >
+        <select value={lang} onChange={(e) => setLang(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #333', background: '#1e1e1e', color: '#fff', fontSize: '14px', outline: 'none', cursor: 'pointer' }}>
           {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
         </select>
       </div>
-
-      <div style={{
-        width: '100%',
-        maxWidth: '400px',
-        background: '#1e1e1e',
-        padding: '40px',
-        borderRadius: '24px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
-      }}>
+      <div style={{ width: '100%', maxWidth: '400px', background: '#1e1e1e', padding: '40px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
         <h1 style={{ margin: '0 0 10px', fontSize: '28px', textAlign: 'center' }}>{isRegister ? t.createAccount : t.welcome}</h1>
         <p style={{ textAlign: 'center', color: '#888', marginBottom: '30px', fontSize: '14px' }}>{t.subtitle}</p>
-
         {error && (
-          <div style={{
-            padding: '12px',
-            marginBottom: '16px',
-            background: '#3b1111',
-            border: '1px solid #ef4444',
-            borderRadius: '8px',
-            color: '#fca5a5',
-            fontSize: '14px',
-            textAlign: 'center'
-          }}>
+          <div style={{ padding: '12px', marginBottom: '16px', background: '#3b1111', border: '1px solid #ef4444', borderRadius: '8px', color: '#fca5a5', fontSize: '14px', textAlign: 'center' }}>
             {error}
           </div>
         )}
-
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-            placeholder={t.email}
-            required
-            style={inputStyle}
-          />
-
-          <input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            placeholder={t.password}
-            required
-            style={inputStyle}
-          />
-
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder={t.email} required style={inputStyle} />
+          <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder={t.password} required style={inputStyle} />
           {isRegister && (
-            <input
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              type="password"
-              placeholder={t.confirmPassword}
-              required
-              style={inputStyle}
-            />
+            <input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} type="password" placeholder={t.confirmPassword} required style={inputStyle} />
           )}
-
           {isRegister && (
             <div style={{ display: 'flex', gap: '10px' }}>
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                type="text"
-                placeholder={t.enterCode}
-                maxLength={6}
-                style={{ ...inputStyle, flex: 1 }}
-              />
-              <button
-                type="button"
-                onClick={sendCode}
-                disabled={countdown > 0 || loading}
-                style={{
-                  padding: '0 20px',
-                  borderRadius: '12px',
-                  border: 'none',
-                  background: countdown > 0 ? '#444' : '#8b5cf6',
-                  color: '#fff',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: countdown > 0 ? 'not-allowed' : 'pointer',
-                  whiteSpace: 'nowrap',
-                  minWidth: '110px'
-                }}
-              >
+              <input value={code} onChange={(e) => setCode(e.target.value)} type="text" placeholder={t.enterCode} maxLength={6} style={{ ...inputStyle, flex: 1 }} />
+              <button type="button" onClick={sendCode} disabled={countdown > 0 || loading} style={{ padding: '0 20px', borderRadius: '12px', border: 'none', background: countdown > 0 ? '#444' : '#8b5cf6', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: countdown > 0 ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', minWidth: '110px' }}>
                 {countdown > 0 ? `${countdown}${t.waitSeconds}` : t.sendCode}
               </button>
             </div>
           )}
-
           {isRegister && (
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#888', lineHeight: '1.5' }}>
-              <input
-                type="checkbox"
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-                style={{ marginTop: '3px', accentColor: '#8b5cf6', cursor: 'pointer', flexShrink: 0 }}
-              />
+              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} style={{ marginTop: '3px', accentColor: '#8b5cf6', cursor: 'pointer', flexShrink: 0 }} />
               <span>
-                {t.agree}
-                <span onClick={() => setShowAgreement('user')} style={{ color: '#8b5cf6', cursor: 'pointer' }}>{t.userAgreement}</span>
-                {t.and}
-                <span onClick={() => setShowAgreement('privacy')} style={{ color: '#8b5cf6', cursor: 'pointer' }}>{t.privacyPolicy}</span>
+                {t.agree} <span onClick={() => setShowAgreement('user')} style={{ color: '#8b5cf6', cursor: 'pointer' }}>{t.userAgreement}</span> {t.and} <span onClick={() => setShowAgreement('privacy')} style={{ color: '#8b5cf6', cursor: 'pointer' }}>{t.privacyPolicy}</span>
               </span>
             </div>
           )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              padding: '16px',
-              borderRadius: '12px',
-              border: 'none',
-              background: loading ? '#666' : '#8b5cf6',
-              color: '#fff',
-              fontSize: '16px',
-              fontWeight: '700',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              marginTop: '10px'
-            }}
-          >
+          <button type="submit" disabled={loading} style={{ padding: '16px', borderRadius: '12px', border: 'none', background: loading ? '#666' : '#8b5cf6', color: '#fff', fontSize: '16px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer', marginTop: '10px' }}>
             {loading ? t.processing : (isRegister ? t.registerBtn : t.loginBtn)}
           </button>
         </form>
-
         <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '14px', color: '#888' }}>
-          {isRegister ? t.hasAccount : t.noAccount}
-          <span onClick={() => { setIsRegister(!isRegister); setError(''); }} style={{ color: '#8b5cf6', cursor: 'pointer', marginLeft: '5px' }}>
-            {isRegister ? t.goLogin : t.goRegister}
-          </span>
+          {isRegister ? t.hasAccount : t.noAccount} <span onClick={() => { setIsRegister(!isRegister); setError(''); }} style={{ color: '#8b5cf6', cursor: 'pointer', marginLeft: '5px' }}>{isRegister ? t.goLogin : t.goRegister}</span>
         </p>
       </div>
-
       {showAgreement && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
           <div style={{ width: '100%', maxWidth: '500px', maxHeight: '80vh', background: '#1e1e1e', borderRadius: '16px', padding: '30px', overflowY: 'auto', position: 'relative' }}>
@@ -352,7 +239,6 @@ export default function LoginPage() {
           </div>
         </div>
       )}
-
       {showAgeModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '20px' }}>
           <div style={{ width: '100%', maxWidth: '420px', background: '#1e1e1e', borderRadius: '20px', padding: '36px', textAlign: 'center', border: '1px solid #333' }}>
@@ -360,12 +246,7 @@ export default function LoginPage() {
             <h2 style={{ margin: '0 0 12px', fontSize: '22px', color: '#fff' }}>{t.ageTitle}</h2>
             <p style={{ fontSize: '14px', color: '#aaa', lineHeight: '1.6', marginBottom: '24px' }}>{t.ageDesc}</p>
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '15px', color: '#ddd', cursor: 'pointer', marginBottom: '24px' }}>
-              <input
-                type="checkbox"
-                checked={ageChecked}
-                onChange={(e) => setAgeChecked(e.target.checked)}
-                style={{ width: '18px', height: '18px', accentColor: '#8b5cf6', cursor: 'pointer' }}
-              />
+              <input type="checkbox" checked={ageChecked} onChange={(e) => setAgeChecked(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#8b5cf6', cursor: 'pointer' }} />
               {t.ageConfirm}
             </label>
             <button onClick={confirmAge} disabled={!ageChecked} style={{ width: '100%', padding: '16px', background: ageChecked ? '#8b5cf6' : '#444', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '16px', fontWeight: '700', cursor: ageChecked ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}>
