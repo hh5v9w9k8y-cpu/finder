@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguageStore, translations } from '@/lib/i18n';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const API_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+  ? window.location.origin 
+  : (process.env.NEXT_PUBLIC_API_URL || '');
 
 const LANGUAGES = [
   { code: 'zh', name: '中文' },
