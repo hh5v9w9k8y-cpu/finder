@@ -1,0 +1,447 @@
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import { translations } from './translations';
+
+export default function FinderPage() {
+  const router = useRouter();
+  const [isChecking, setIsChecking] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isMatching, setIsMatching] = useState(false);
+  const [matchStatus, setMatchStatus] = useState('');
+  const [messages, setMessages] = useState<{ sender: string; text: string }[]>([]);
+  const [inputMsg, setInputMsg] = useState('');
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [selectedCountry, setSelectedCountry] = useState('global');
+  const [selectedGender, setSelectedGender] = useState('any');
+  const [onlineCount, setOnlineCount] = useState(0);
+  const [matchTimer, setMatchTimer] = useState(0);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const timerRef = useRef<number | null>(null);
+  const myIdRef = useRef(Math.random().toString(36).substring(2, 10));
+  const channelRef = useRef<any>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+
+  const t = translations[selectedLanguage];
+
+  useEffect(() => {
+    checkSession();
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      leaveChannel();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isMatching) {
+      timerRef.current = window.setInterval(() => {
+        setMatchTimer(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setMatchTimer(0);
+    }
+  }, [isMatching]);
+
+  const checkSession = async () => {
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    if (!isLoggedIn) {
+      router.push('/login');
+    } else {
+      setIsChecking(false);
+      joinChannel();
+    }
+  };
+
+  const joinChannel = async () => {
+    const channel = supabase.channel('finder-room');
+    channelRef.current = channel;
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        setOnlineCount(Object.keys(state).length);
+      })
+      .on('broadcast', { event: 'signal' }, handleSignal)
+      .on('broadcast', { event: 'chat' }, (payload) => {
+        const { from, text } = payload.payload;
+        if (from !== myIdRef.current) {
+          setMessages(prev => [...prev, { sender: 'stranger', text }]);
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ id: myIdRef.current, type: 'user' });
+        }
+      });
+  };
+
+  const leaveChannel = async () => {
+    if (channelRef.current) {
+      await channelRef.current.unsubscribe();
+      channelRef.current = null;
+    }
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+  };
+
+  const handleSignal = async (payload: any) => {
+    const { from, type, sdp, candidate } = payload.payload;
+    const pc = peerConnectionRef.current;
+    if (!pc) return;
+
+    if (type === 'offer') {
+      await pc.setRemoteDescription(new RTCSessionDescription({ type, sdp }));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      channelRef.current?.send({
+        type: 'broadcast',
+        event: 'signal',
+        payload: { to: from, type: 'answer', sdp: pc.localDescription?.sdp, from: myIdRef.current }
+      });
+    } else if (type === 'answer') {
+      await pc.setRemoteDescription(new RTCSessionDescription({ type, sdp }));
+    } else if (type === 'candidate') {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.error('Error adding ICE candidate', e);
+      }
+    }
+  };
+
+  const startMatching = async () => {
+    setIsMatching(true);
+    setMatchStatus(t.matching);
+    setMessages([]);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      peerConnectionRef.current = pc;
+
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+      pc.ontrack = (event) => {
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0];
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          channelRef.current?.send({
+            type: 'broadcast',
+            event: 'signal',
+            payload: { to: 'all', type: 'candidate', candidate: event.candidate, from: myIdRef.current }
+          });
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+          endCall(t.disconnected);
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      channelRef.current?.send({
+        type: 'broadcast',
+        event: 'signal',
+        payload: { to: 'all', type: 'offer', sdp: offer.sdp, from: myIdRef.current }
+      });
+
+      // 模拟匹配成功
+      setTimeout(() => {
+        setIsMatching(false);
+        setIsConnected(true);
+        setMatchStatus(t.matchFound);
+      }, 3000);
+
+    } catch (err) {
+      console.error(err);
+      setMatchStatus(t.noCamera);
+      setIsMatching(false);
+    }
+  };
+
+  const endCall = (reason: string) => {
+    setIsConnected(false);
+    setIsMatching(false);
+    setMatchStatus(reason);
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+  };
+
+  const handleNext = () => {
+    endCall(t.youDisconnected);
+    setTimeout(startMatching, 500);
+  };
+
+  const handleStop = () => {
+    endCall(t.youDisconnected);
+  };
+
+  const sendMessage = () => {
+    if (inputMsg.trim() && isConnected) {
+      setMessages(prev => [...prev, { sender: 'me', text: inputMsg }]);
+      channelRef.current?.send({
+        type: 'broadcast',
+        event: 'chat',
+        payload: { text: inputMsg, from: myIdRef.current }
+      });
+      setInputMsg('');
+    }
+  };
+
+  const handleReport = async (reason: string) => {
+    const { error } = await supabase.from('reports').insert({
+      reporter_id: myIdRef.current,
+      reason: reason,
+      details: `Reported during chat`
+    });
+    if (error) {
+      alert(t.reportFailed);
+    } else {
+      alert(t.reportSuccess);
+      setShowReportModal(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const { error } = await supabase.functions.invoke('delete-user', {
+      body: { userId: myIdRef.current } // 注意：实际生产中需要从 auth 获取真实 ID
+    });
+    if (error) {
+      alert('Deletion failed');
+    } else {
+      await supabase.auth.signOut();
+      router.push('/login');
+    }
+  };
+
+  if (isChecking) return <div className="flex h-screen items-center justify-center bg-black text-white">Loading...</div>;
+
+  return (
+    <div className="flex h-screen bg-gray-900 text-white overflow-hidden font-sans">
+      {/* Sidebar */}
+      <div className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-gray-800 transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0`}>
+        <div className="p-4 space-y-6">
+          <h1 className="text-2xl font-bold text-green-400">{t.finder}</h1>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">{t.language}</label>
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="w-full bg-gray-700 rounded p-2 text-sm"
+              >
+                <option value="en">English</option>
+                <option value="zh">中文</option>
+                <option value="es">Español</option>
+                <option value="hi">हिंदी</option>
+                <option value="ar">العربية</option>
+                <option value="bn">বাংলা</option>
+                <option value="pt">Português</option>
+                <option value="ru">Русский</option>
+                <option value="ja">日本語</option>
+                <option value="fr">Français</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">{t.country}</label>
+              <select
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+                className="w-full bg-gray-700 rounded p-2 text-sm"
+              >
+                <option value="global">{t.global}</option>
+                <option value="us">🇺🇸 United States</option>
+                <option value="cn">🇨🇳 China</option>
+                <option value="in">🇮🇳 India</option>
+                <option value="br">🇧🇷 Brazil</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">{t.gender}</label>
+              <select
+                value={selectedGender}
+                onChange={(e) => setSelectedGender(e.target.value)}
+                className="w-full bg-gray-700 rounded p-2 text-sm"
+              >
+                <option value="any">{t.any}</option>
+                <option value="male">{t.male}</option>
+                <option value="female">{t.female}</option>
+              </select>
+            </div>
+          </div>
+          <div className="pt-4 border-t border-gray-700">
+            <div className="flex items-center mb-4">
+              <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+              <span className="text-sm">{t.onlineNow}: {onlineCount}</span>
+            </div>
+            <button
+              onClick={() => supabase.auth.signOut().then(() => router.push('/login'))}
+              className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded text-sm transition-colors"
+            >
+                {/* 注销账号按钮 */}
+                <button 
+                  onClick={handleDeleteAccount} 
+                  style={{ width: "100%", padding: "12px", marginBottom: "8px", background: "#7f1d1d", color: "#fca5a5", border: "none", borderRadius: "8px", fontSize: "14px", cursor: "pointer" }}
+                >
+                  {t.deleteAccount}
+                </button>
+              {t.logout}
+            </button>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="w-full mt-2 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded text-sm transition-colors"
+            >
+              {t.deleteAccount}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col relative">
+        {/* Header */}
+        <div className="bg-gray-800 p-4 flex items-center justify-between">
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-300 hover:text-white">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <h2 className="text-lg font-semibold">{t.finder}</h2>
+          <div className="w-6"></div>
+        </div>
+
+        {/* Video Area */}
+        <div className="flex-1 relative bg-black flex items-center justify-center">
+          <div className="relative w-full h-full max-w-4xl aspect-video">
+            {/* Remote Video */}
+            <video ref={remoteVideoRef} autoPlay playsInline muted={false} className="w-full h-full object-cover rounded-lg bg-gray-800" />
+            
+            {!isConnected && !isMatching && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
+                <div className="text-center">
+                  <p className="text-xl mb-2">{t.readyToConnect}</p>
+                  <button
+                    onClick={startMatching}
+                    className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-full text-lg font-semibold transition-colors"
+                  >
+                    {t.start}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Local Video (Picture-in-Picture) */}
+            <div className="absolute bottom-4 right-4 w-32 h-24 bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-600">
+              <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scale-x-[-1]" />
+            </div>
+
+            {/* Matching Overlay */}
+            {isMatching && (
+              <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center rounded-lg">
+                <div className="text-center">
+                  <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <p className="text-xl mb-2">{matchStatus}</p>
+                  <p className="text-gray-400">{t.queuePosition}</p>
+                  <button
+                    onClick={() => { setIsMatching(false); setMatchStatus(''); }}
+                    className="mt-4 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors"
+                  >
+                    {t.cancelMatch}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Chat Area */}
+        {isConnected && (
+          <div className="bg-gray-800 p-4 border-t border-gray-700">
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={inputMsg}
+                onChange={(e) => setInputMsg(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                placeholder={t.sendMessage}
+                className="flex-1 bg-gray-700 text-white rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <button onClick={sendMessage} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
+              <button onClick={() => setShowReportModal(true)} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-full transition-colors">
+                {t.report}
+              </button>
+              <button onClick={handleNext} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-full transition-colors">
+                {t.next}
+              </button>
+              <button onClick={handleStop} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full transition-colors">
+                {t.stop}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold mb-4">{t.reportUser}</h3>
+            <p className="text-gray-300 mb-4">{t.confirmReport}</p>
+            <div className="space-y-2 mb-4">
+              <button onClick={() => handleReport(t.inappropriate)} className="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded transition-colors">
+                {t.inappropriate}
+              </button>
+              <button onClick={() => handleReport(t.harassment)} className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded transition-colors">
+                {t.harassment}
+              </button>
+            </div>
+            <button onClick={() => setShowReportModal(false)} className="w-full bg-gray-600 hover:bg-gray-700 text-white py-2 rounded transition-colors">
+              {t.cancelMatch}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold mb-4 text-red-400">{t.deleteAccount}</h3>
+            <p className="text-gray-300 mb-4">{t.confirmDeleteAccount}</p>
+            <div className="flex space-x-2">
+              <button onClick={handleDeleteAccount} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded transition-colors">
+                {t.deleteAccount}
+              </button>
+              <button onClick={() => setShowDeleteModal(false)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded transition-colors">
+                {t.cancelMatch}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
