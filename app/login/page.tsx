@@ -21,7 +21,7 @@ const LANGUAGES = [
 export default function LoginPage() {
   const router = useRouter();
   const { lang, setLang } = useLanguageStore();
-  const t = translations[lang] || translations['en'];
+  const t = translations[lang as keyof typeof translations] || translations['en'];
 
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');

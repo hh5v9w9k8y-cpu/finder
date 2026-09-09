@@ -1,19 +1,39 @@
-const codeStore = new Map<string, { code: string; expires: number }>();
+import { supabase } from './supabase'
 
-export function setCode(email: string, code: string) {
-  codeStore.set(email, { code, expires: Date.now() + 5 * 60 * 1000 });
+export async function setCode(email: string, code: string) {
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+
+  const { error } = await supabase
+    .from('verification_codes')
+    .insert({ email, code, expires_at: expiresAt })
+
+  if (error) throw error
 }
 
-export function getCode(email: string) {
-  const stored = codeStore.get(email);
-  if (!stored) return null;
-  if (Date.now() > stored.expires) {
-    codeStore.delete(email);
-    return null;
+export async function getCode(email: string) {
+  const now = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from('verification_codes')
+    .select('code')
+    .eq('email', email)
+    .gt('expires_at', now)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') return null
+    throw error
   }
-  return stored.code;
+  return data.code
 }
 
-export function deleteCode(email: string) {
-  codeStore.delete(email);
+export async function deleteCode(email: string) {
+  const { error } = await supabase
+    .from('verification_codes')
+    .delete()
+    .eq('email', email)
+
+  if (error) throw error
 }

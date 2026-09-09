@@ -1,19 +1,40 @@
-interface User {
-  email: string;
-  password: string;
-  createdAt: number;
+import { supabase } from './supabase'
+
+export async function addUser(email: string, password: string) {
+  const { data, error } = await supabase
+    .from('users')
+    .insert({ email, password })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
 }
 
-const users = new Map<string, User>();
+export async function getUser(email: string) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('email', email)
+    .single()
 
-export function addUser(email: string, password: string) {
-  users.set(email, { email, password, createdAt: Date.now() });
+  if (error) {
+    if (error.code === 'PGRST116') return null
+    throw error
+  }
+  return data
 }
 
-export function getUser(email: string) {
-  return users.get(email) || null;
-}
+export async function hasUser(email: string) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .single()
 
-export function hasUser(email: string) {
-  return users.has(email);
+  if (error) {
+    if (error.code === 'PGRST116') return false
+    throw error
+  }
+  return true
 }
